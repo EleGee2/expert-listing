@@ -81,3 +81,7 @@
 - Resolved the prior high-severity npm audit finding by pinning `prisma` and `@prisma/client` to `6.12.0`; `npm audit --audit-level=high` now reports `found 0 vulnerabilities`.
 - Local verification passed: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run test:e2e`, `npm run build`, and `npm audit --audit-level=high`.
 - Docker verification passed: rebuilt API image, confirmed liveness/readiness, and verified `/metrics` exposition.
+
+## Lessons
+
+- Never add `Co-Authored-By: Claude` (or "Generated with Claude Code") attribution to commit messages or PR descriptions. Plain commit messages only.
