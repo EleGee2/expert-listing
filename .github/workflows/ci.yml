@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: expert
+          POSTGRES_PASSWORD: expert_password
+          POSTGRES_DB: expert_listing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U expert -d expert_listing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      APP_NAME: expert-listing
+      PORT: 3000
+      API_PREFIX: api
+      API_VERSION: 1
+      CORS_ORIGINS: http://localhost:3000
+      DATABASE_URL: postgresql://expert:expert_password@localhost:5432/expert_listing?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_TLS: false
+      JWT_ACCESS_SECRET: ci-access-secret-change-me-123456
+      JWT_REFRESH_SECRET: ci-refresh-secret-change-me-123456
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 30d
+      PAYMENT_PROVIDER: mock
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret-change-me-123456
+      RATE_LIMIT_TTL_MS: 60000
+      RATE_LIMIT_LIMIT: 120
+      AUTH_RATE_LIMIT_TTL_MS: 60000
+      AUTH_RATE_LIMIT_LIMIT: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run test:e2e
+      - run: npm run build

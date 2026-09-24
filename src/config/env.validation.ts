@@ -1,0 +1,26 @@
+import Joi from 'joi';
+
+export const envValidationSchema = Joi.object({
+  NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+  APP_NAME: Joi.string().default('expert-listing'),
+  PORT: Joi.number().port().default(3000),
+  API_PREFIX: Joi.string().default('api'),
+  API_VERSION: Joi.string().default('1'),
+  CORS_ORIGINS: Joi.string().allow('').default(''),
+  DATABASE_URL: Joi.string().uri({ scheme: ['postgresql', 'postgres'] }).required(),
+  REDIS_HOST: Joi.string().default('localhost'),
+  REDIS_PORT: Joi.number().port().default(6379),
+  REDIS_PASSWORD: Joi.string().allow('').optional(),
+  REDIS_DB: Joi.number().integer().min(0).default(0),
+  REDIS_TLS: Joi.boolean().truthy('true').falsy('false').default(false),
+  JWT_ACCESS_SECRET: Joi.string().min(24).required(),
+  JWT_REFRESH_SECRET: Joi.string().min(24).required(),
+  JWT_ACCESS_TTL: Joi.string().default('15m'),
+  JWT_REFRESH_TTL: Joi.string().default('30d'),
+  PAYMENT_PROVIDER: Joi.string().valid('mock', 'paystack', 'stripe').default('mock'),
+  PAYMENT_WEBHOOK_SECRET: Joi.string().min(24).required(),
+  RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60000),
+  RATE_LIMIT_LIMIT: Joi.number().integer().min(1).default(120),
+  AUTH_RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60000),
+  AUTH_RATE_LIMIT_LIMIT: Joi.number().integer().min(1).default(10),
+});

@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  EXPERT
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ExpertStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  SUSPENDED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MOCK
+  PAYSTACK
+  STRIPE
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         UserRole       @default(USER)
+  status       UserStatus     @default(ACTIVE)
+  expert       ExpertProfile?
+  refreshTokens RefreshToken[]
+  reviews      Review[]
+  favorites    Favorite[]
+  bookings     Booking[]      @relation("CustomerBookings")
+  auditLogs     AuditLog[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  @@index([status])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  slug      String          @unique
+  parentId  String?
+  parent    Category?       @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[]      @relation("CategoryTree")
+  experts   ExpertProfile[]
+  services  ExpertService[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model ExpertProfile {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  categoryId      String
+  headline        String
+  bio             String
+  yearsExperience Int                @default(0)
+  hourlyRateMinor Int?
+  currency        String             @default("NGN")
+  city            String?
+  country         String?
+  status          ExpertStatus       @default(DRAFT)
+  publishedAt     DateTime?
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category           @relation(fields: [categoryId], references: [id])
+  services        ExpertService[]
+  reviews         Review[]
+  favorites       Favorite[]
+  availability    AvailabilitySlot[]
+  bookings        Booking[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deletedAt       DateTime?
+
+  @@index([categoryId, status])
+  @@index([city, country])
+  @@index([status, publishedAt])
+  @@map("expert_profiles")
+}
+
+model ExpertService {
+  id             String        @id @default(cuid())
+  expertId       String
+  categoryId     String
+  title          String
+  description    String
+  durationMinutes Int
+  priceMinor     Int
+  currency       String        @default("NGN")
+  isActive       Boolean       @default(true)
+  expert         ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  category       Category      @relation(fields: [categoryId], references: [id])
+  bookings       Booking[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  @@index([expertId, isActive])
+  @@index([categoryId])
+  @@map("expert_services")
+}
+
+model Review {
+  id        String        @id @default(cuid())
+  userId    String
+  expertId  String
+  rating    Int
+  comment   String?
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expert    ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([userId, expertId])
+  @@index([expertId, rating])
+  @@map("reviews")
+}
+
+model Favorite {
+  id        String        @id @default(cuid())
+  userId    String
+  expertId  String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expert    ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([userId, expertId])
+  @@index([expertId])
+  @@map("favorites")
+}
+
+model AvailabilitySlot {
+  id          String        @id @default(cuid())
+  expertId    String
+  startsAt    DateTime
+  endsAt      DateTime
+  isAvailable Boolean       @default(true)
+  expert      ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([expertId, startsAt, endsAt])
+  @@map("availability_slots")
+}
+
+model Booking {
+  id                 String            @id @default(cuid())
+  customerId         String
+  expertId           String
+  serviceId          String
+  availabilitySlotId String?
+  status             BookingStatus     @default(PENDING_PAYMENT)
+  startsAt           DateTime
+  endsAt             DateTime
+  amountMinor        Int
+  currency           String            @default("NGN")
+  notes              String?
+  customer           User              @relation("CustomerBookings", fields: [customerId], references: [id])
+  expert             ExpertProfile     @relation(fields: [expertId], references: [id])
+  service            ExpertService     @relation(fields: [serviceId], references: [id])
+  availabilitySlot   AvailabilitySlot? @relation(fields: [availabilitySlotId], references: [id])
+  payment            Payment?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  cancelledAt        DateTime?
+
+  @@index([customerId, status])
+  @@index([expertId, startsAt])
+  @@index([status])
+  @@map("bookings")
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  bookingId          String          @unique
+  provider          PaymentProvider @default(MOCK)
+  status            PaymentStatus   @default(PENDING)
+  amountMinor       Int
+  currency          String          @default("NGN")
+  providerReference String?         @unique
+  checkoutUrl       String?
+  metadata          Json?
+  booking           Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([status])
+  @@map("payments")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  topic       String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  lastError   String?
+  availableAt DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, availableAt])
+  @@map("outbox_events")
+}
